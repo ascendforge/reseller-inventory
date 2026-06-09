@@ -1,0 +1,439 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Reseller Inventory</title>
+<style>
+  :root {
+    --ink: #1b2a41;
+    --paper: #fafaf7;
+    --card: #ffffff;
+    --line: #e3e1da;
+    --tag: #ffc94d;
+    --tag-ink: #5c4400;
+    --sold: #2e7d52;
+    --loss: #b3402a;
+    --muted: #6b7280;
+    --mono: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+    --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { height: 100%; }
+  body { background: var(--paper); color: var(--ink); font-family: var(--sans); padding: 16px 20px 40px; max-width: 1080px; margin: 0 auto; -webkit-user-select: none; user-select: none; }
+  input, .item-main .name { -webkit-user-select: text; user-select: text; }
+
+  header { display: flex; align-items: baseline; justify-content: space-between; flex-wrap: wrap; gap: 8px; margin-bottom: 18px; }
+  header h1 { font-size: 1.35rem; letter-spacing: -0.01em; }
+  header h1 .dot { display: inline-block; width: 14px; height: 14px; border-radius: 50%; background: var(--tag); margin-right: 8px; }
+  header .sub { font-family: var(--mono); font-size: 0.75rem; color: var(--muted); }
+
+  .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 10px; margin-bottom: 20px; }
+  .stat { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; }
+  .stat .label { font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); margin-bottom: 4px; }
+  .stat .value { font-family: var(--mono); font-size: 1.25rem; font-weight: 600; }
+  .stat .value.pos { color: var(--sold); }
+  .stat .value.neg { color: var(--loss); }
+
+  .panel { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 16px; margin-bottom: 20px; }
+  .panel h2 { font-size: 0.95rem; margin-bottom: 12px; display: flex; align-items: center; justify-content: space-between; cursor: pointer; }
+  .panel h2 .chev { transition: transform 0.15s; color: var(--muted); font-size: 0.8rem; }
+  .panel.collapsed .form-body { display: none; }
+  .panel.collapsed h2 { margin-bottom: 0; }
+  .panel.collapsed h2 .chev { transform: rotate(-90deg); }
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; }
+  .field { display: flex; flex-direction: column; gap: 4px; }
+  .field.wide { grid-column: 1 / -1; }
+  label { font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); font-weight: 600; }
+  input, select { padding: 9px 10px; border: 1px solid var(--line); border-radius: 8px; font-size: 0.95rem; font-family: var(--sans); background: var(--paper); color: var(--ink); width: 100%; }
+  input:focus, select:focus { outline: 2px solid var(--tag); outline-offset: 1px; border-color: var(--tag); }
+  input.money { font-family: var(--mono); }
+  .form-actions { margin-top: 14px; display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+  button { border: none; border-radius: 8px; padding: 10px 18px; font-size: 0.9rem; font-weight: 600; cursor: pointer; font-family: var(--sans); }
+  button:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
+  .btn-primary { background: var(--ink); color: #fff; }
+  .btn-primary:hover { background: #2a3e5c; }
+  .btn-ghost { background: transparent; color: var(--muted); }
+  .next-num { font-family: var(--mono); font-size: 0.8rem; color: var(--muted); }
+  .next-num b { color: var(--tag-ink); background: var(--tag); border-radius: 999px; padding: 2px 10px; font-weight: 600; }
+
+  .toolbar { display: flex; gap: 10px; margin-bottom: 12px; flex-wrap: wrap; }
+  .toolbar input[type="search"] { flex: 1; min-width: 160px; }
+  .toolbar select, .toolbar button { width: auto; }
+  .btn-export { background: #eef1f5; color: var(--ink); font-size: 0.8rem; padding: 9px 14px; }
+
+  .item { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 14px 16px; margin-bottom: 10px; display: grid; grid-template-columns: auto 1fr auto; gap: 14px; align-items: center; }
+  .sticker { width: 58px; height: 58px; border-radius: 50%; background: var(--tag); color: var(--tag-ink); display: flex; flex-direction: column; align-items: center; justify-content: center; font-family: var(--mono); flex-shrink: 0; transform: rotate(-6deg); box-shadow: 0 1px 2px rgba(0,0,0,0.12); }
+  .sticker.sold-st { background: var(--sold); color: #fff; }
+  .sticker.loss-st { background: var(--loss); color: #fff; }
+  .sticker .amt { font-size: 0.82rem; font-weight: 700; line-height: 1; }
+  .sticker .lbl { font-size: 0.5rem; text-transform: uppercase; letter-spacing: 0.05em; margin-top: 2px; opacity: 0.85; }
+  .item-main .num { font-family: var(--mono); font-size: 0.72rem; color: var(--muted); letter-spacing: 0.04em; }
+  .item-main .name { font-weight: 600; font-size: 1rem; margin: 2px 0 4px; }
+  .item-main .meta { font-size: 0.78rem; color: var(--muted); font-family: var(--mono); display: flex; flex-wrap: wrap; gap: 4px 14px; }
+  .badge { display: inline-block; font-size: 0.66rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; padding: 3px 8px; border-radius: 999px; }
+  .badge.instock { background: #eef1f5; color: var(--ink); }
+  .badge.listed { background: #fff3d6; color: var(--tag-ink); }
+  .badge.sold { background: #e2f1e8; color: var(--sold); }
+  .item-actions { display: flex; flex-direction: column; gap: 6px; align-items: flex-end; }
+  .item-actions .row { display: flex; gap: 6px; }
+  .mini { padding: 6px 10px; font-size: 0.75rem; border-radius: 6px; }
+  .mini.sell { background: var(--sold); color: #fff; }
+  .mini.edit { background: #eef1f5; color: var(--ink); }
+  .mini.del { background: transparent; color: var(--loss); }
+
+  .empty { text-align: center; padding: 40px 16px; color: var(--muted); }
+  .empty .big { font-size: 2rem; margin-bottom: 8px; }
+  .loading { text-align: center; padding: 40px; color: var(--muted); font-family: var(--mono); font-size: 0.85rem; }
+  .toast { position: fixed; bottom: 18px; left: 50%; transform: translateX(-50%); background: var(--ink); color: #fff; padding: 10px 18px; border-radius: 999px; font-size: 0.85rem; opacity: 0; transition: opacity 0.25s; pointer-events: none; z-index: 50; }
+  .toast.show { opacity: 1; }
+
+  .overlay { position: fixed; inset: 0; background: rgba(27,42,65,0.45); display: none; align-items: center; justify-content: center; padding: 16px; z-index: 40; }
+  .overlay.open { display: flex; }
+  .dialog { background: var(--card); border-radius: 14px; padding: 20px; width: 100%; max-width: 420px; }
+  .dialog h3 { font-size: 1rem; margin-bottom: 4px; }
+  .dialog .dnum { font-family: var(--mono); font-size: 0.75rem; color: var(--muted); margin-bottom: 14px; }
+  .dialog .grid { grid-template-columns: 1fr 1fr; }
+  .dialog .preview { margin-top: 12px; font-family: var(--mono); font-size: 0.85rem; background: var(--paper); border: 1px dashed var(--line); border-radius: 8px; padding: 10px 12px; }
+  .dialog .preview b.pos { color: var(--sold); } .dialog .preview b.neg { color: var(--loss); }
+
+  @media (max-width: 560px) {
+    .item { grid-template-columns: auto 1fr; }
+    .item-actions { grid-column: 1 / -1; flex-direction: row; justify-content: flex-end; }
+  }
+  @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+</head>
+<body>
+
+<header>
+  <h1><span class="dot"></span>Inventory</h1>
+  <span class="sub">eBay &amp; Facebook Marketplace</span>
+</header>
+
+<div class="stats" id="stats"></div>
+
+<section class="panel" id="addPanel">
+  <h2 onclick="togglePanel()">Add new item <span class="chev">▼</span></h2>
+  <div class="form-body">
+    <div class="grid">
+      <div class="field wide">
+        <label for="fName">Item name</label>
+        <input id="fName" type="text" placeholder="e.g. Vintage Pyrex mixing bowl set">
+      </div>
+      <div class="field">
+        <label for="fCost">Cost (what you paid)</label>
+        <input id="fCost" class="money" type="number" step="0.01" min="0" placeholder="0.00">
+      </div>
+      <div class="field">
+        <label for="fPrice">Asking price</label>
+        <input id="fPrice" class="money" type="number" step="0.01" min="0" placeholder="0.00">
+      </div>
+      <div class="field">
+        <label for="fPlatform">Platform</label>
+        <select id="fPlatform">
+          <option>eBay</option>
+          <option>Facebook Marketplace</option>
+          <option>Both</option>
+          <option>Not listed yet</option>
+        </select>
+      </div>
+      <div class="field">
+        <label for="fStatus">Status</label>
+        <select id="fStatus">
+          <option value="instock">In stock</option>
+          <option value="listed">Listed</option>
+        </select>
+      </div>
+    </div>
+    <div class="form-actions">
+      <button class="btn-primary" onclick="addItem()">Add item</button>
+      <span class="next-num">Next item #: <b id="nextNum">—</b></span>
+    </div>
+  </div>
+</section>
+
+<div class="toolbar">
+  <input type="search" id="search" placeholder="Search items or item #…" oninput="render()">
+  <select id="filterStatus" onchange="render()">
+    <option value="all">All statuses</option>
+    <option value="instock">In stock</option>
+    <option value="listed">Listed</option>
+    <option value="sold">Sold</option>
+  </select>
+  <button class="btn-export" onclick="exportCsv()">Export CSV</button>
+</div>
+
+<div id="list"><div class="loading">Loading inventory…</div></div>
+
+<!-- Mark as sold dialog -->
+<div class="overlay" id="sellOverlay">
+  <div class="dialog">
+    <h3 id="dlgName">Mark as sold</h3>
+    <div class="dnum" id="dlgNum"></div>
+    <div class="grid">
+      <div class="field">
+        <label for="sPrice">Sold for</label>
+        <input id="sPrice" class="money" type="number" step="0.01" min="0" oninput="previewProfit()">
+      </div>
+      <div class="field">
+        <label for="sShipCharged">Shipping charged to buyer</label>
+        <input id="sShipCharged" class="money" type="number" step="0.01" min="0" value="0" oninput="previewProfit()">
+      </div>
+      <div class="field">
+        <label for="sShipCost">Shipping you paid</label>
+        <input id="sShipCost" class="money" type="number" step="0.01" min="0" value="0" oninput="previewProfit()">
+      </div>
+      <div class="field">
+        <label for="sFees">Platform fees</label>
+        <input id="sFees" class="money" type="number" step="0.01" min="0" value="0" oninput="previewProfit()">
+      </div>
+      <div class="field wide">
+        <label for="sPlatform">Sold on</label>
+        <select id="sPlatform">
+          <option>eBay</option>
+          <option>Facebook Marketplace</option>
+        </select>
+      </div>
+    </div>
+    <div class="preview" id="profitPreview">Profit: —</div>
+    <div class="form-actions">
+      <button class="btn-primary" onclick="confirmSold()">Confirm sale</button>
+      <button class="btn-ghost" onclick="closeDialog()">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const KEY = 'inventory-data';
+let state = { items: [], nextNumber: 1 };
+let sellingId = null;
+let tauriStore = null;
+
+// ---- Storage layer: Tauri store plugin (JSON file on disk), localStorage fallback ----
+async function initStorage() {
+  if (window.__TAURI__ && window.__TAURI__.store) {
+    tauriStore = await window.__TAURI__.store.load('inventory.json', { autoSave: 200 });
+  }
+}
+async function loadData() {
+  if (tauriStore) {
+    const v = await tauriStore.get(KEY);
+    if (v) state = v;
+  } else {
+    const raw = localStorage.getItem(KEY);
+    if (raw) state = JSON.parse(raw);
+  }
+}
+async function save() {
+  try {
+    if (tauriStore) {
+      await tauriStore.set(KEY, state);
+      await tauriStore.save();
+    } else {
+      localStorage.setItem(KEY, JSON.stringify(state));
+    }
+  } catch (e) {
+    toast('Could not save — try again');
+    console.error(e);
+  }
+}
+
+const fmt = n => '$' + (Number(n) || 0).toFixed(2);
+const itemNum = n => 'ITM-' + String(n).padStart(4, '0');
+const profitOf = it => (Number(it.soldPrice)||0) + (Number(it.shipCharged)||0) - (Number(it.cost)||0) - (Number(it.shipCost)||0) - (Number(it.fees)||0);
+
+function toast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2200);
+}
+
+function togglePanel() {
+  document.getElementById('addPanel').classList.toggle('collapsed');
+}
+
+async function addItem() {
+  const name = document.getElementById('fName').value.trim();
+  if (!name) { toast('Give the item a name'); return; }
+  const it = {
+    id: 'i' + Date.now(),
+    number: itemNum(state.nextNumber),
+    name,
+    cost: Number(document.getElementById('fCost').value) || 0,
+    askPrice: Number(document.getElementById('fPrice').value) || 0,
+    platform: document.getElementById('fPlatform').value,
+    status: document.getElementById('fStatus').value,
+    soldPrice: 0, shipCharged: 0, shipCost: 0, fees: 0,
+    added: new Date().toISOString().slice(0,10)
+  };
+  state.items.unshift(it);
+  state.nextNumber++;
+  await save();
+  document.getElementById('fName').value = '';
+  document.getElementById('fCost').value = '';
+  document.getElementById('fPrice').value = '';
+  document.getElementById('fName').focus();
+  toast(it.number + ' added');
+  render();
+}
+
+function openSell(id) {
+  sellingId = id;
+  const it = state.items.find(x => x.id === id);
+  document.getElementById('dlgName').textContent = it.name;
+  document.getElementById('dlgNum').textContent = it.number;
+  document.getElementById('sPrice').value = it.askPrice || '';
+  document.getElementById('sShipCharged').value = it.shipCharged || 0;
+  document.getElementById('sShipCost').value = it.shipCost || 0;
+  document.getElementById('sFees').value = it.fees || 0;
+  if (it.platform === 'eBay' || it.platform === 'Facebook Marketplace')
+    document.getElementById('sPlatform').value = it.platform;
+  previewProfit();
+  document.getElementById('sellOverlay').classList.add('open');
+}
+
+function previewProfit() {
+  const it = state.items.find(x => x.id === sellingId);
+  if (!it) return;
+  const p = (Number(document.getElementById('sPrice').value)||0)
+          + (Number(document.getElementById('sShipCharged').value)||0)
+          - (Number(document.getElementById('sShipCost').value)||0)
+          - (Number(document.getElementById('sFees').value)||0)
+          - (Number(it.cost)||0);
+  const el = document.getElementById('profitPreview');
+  el.innerHTML = 'Profit after cost & fees: <b class="' + (p >= 0 ? 'pos' : 'neg') + '">' + fmt(p) + '</b>';
+}
+
+function closeDialog() {
+  document.getElementById('sellOverlay').classList.remove('open');
+  sellingId = null;
+}
+
+async function confirmSold() {
+  const it = state.items.find(x => x.id === sellingId);
+  if (!it) return;
+  it.soldPrice = Number(document.getElementById('sPrice').value) || 0;
+  it.shipCharged = Number(document.getElementById('sShipCharged').value) || 0;
+  it.shipCost = Number(document.getElementById('sShipCost').value) || 0;
+  it.fees = Number(document.getElementById('sFees').value) || 0;
+  it.platform = document.getElementById('sPlatform').value;
+  it.status = 'sold';
+  it.soldDate = new Date().toISOString().slice(0,10);
+  await save();
+  closeDialog();
+  toast(it.number + ' marked sold — ' + fmt(profitOf(it)) + ' profit');
+  render();
+}
+
+async function setStatus(id, status) {
+  const it = state.items.find(x => x.id === id);
+  if (!it) return;
+  it.status = status;
+  await save();
+  render();
+}
+
+async function removeItem(id) {
+  const it = state.items.find(x => x.id === id);
+  if (!it) return;
+  if (!confirm('Delete ' + it.number + ' — ' + it.name + '?')) return;
+  state.items = state.items.filter(x => x.id !== id);
+  await save();
+  toast('Item deleted');
+  render();
+}
+
+function exportCsv() {
+  const head = ['Item Number','Name','Status','Platform','Date Added','Date Sold','Cost','Asking Price','Sold Price','Shipping Charged','Shipping Paid','Fees','Profit'];
+  const rows = state.items.map(it => [
+    it.number, '"' + it.name.replace(/"/g, '""') + '"', it.status, it.platform,
+    it.added || '', it.soldDate || '',
+    (it.cost||0).toFixed(2), (it.askPrice||0).toFixed(2),
+    (it.soldPrice||0).toFixed(2), (it.shipCharged||0).toFixed(2),
+    (it.shipCost||0).toFixed(2), (it.fees||0).toFixed(2),
+    it.status === 'sold' ? profitOf(it).toFixed(2) : ''
+  ].join(','));
+  const csv = [head.join(','), ...rows].join('\n');
+  const a = document.createElement('a');
+  a.href = 'data:text/csv;charset=utf-8,' + encodeURIComponent(csv);
+  a.download = 'inventory-' + new Date().toISOString().slice(0,10) + '.csv';
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  toast('CSV exported');
+}
+
+function render() {
+  const sold = state.items.filter(i => i.status === 'sold');
+  const active = state.items.filter(i => i.status !== 'sold');
+  const invested = active.reduce((s,i) => s + (Number(i.cost)||0), 0);
+  const totalProfit = sold.reduce((s,i) => s + profitOf(i), 0);
+  const revenue = sold.reduce((s,i) => s + (Number(i.soldPrice)||0) + (Number(i.shipCharged)||0), 0);
+  document.getElementById('stats').innerHTML = `
+    <div class="stat"><div class="label">Items on hand</div><div class="value">${active.length}</div></div>
+    <div class="stat"><div class="label">Invested (on hand)</div><div class="value">${fmt(invested)}</div></div>
+    <div class="stat"><div class="label">Items sold</div><div class="value">${sold.length}</div></div>
+    <div class="stat"><div class="label">Total revenue</div><div class="value">${fmt(revenue)}</div></div>
+    <div class="stat"><div class="label">Total profit</div><div class="value ${totalProfit >= 0 ? 'pos' : 'neg'}">${fmt(totalProfit)}</div></div>`;
+
+  document.getElementById('nextNum').textContent = itemNum(state.nextNumber);
+
+  const q = document.getElementById('search').value.toLowerCase();
+  const f = document.getElementById('filterStatus').value;
+  let items = state.items.filter(i =>
+    (f === 'all' || i.status === f) &&
+    (!q || i.name.toLowerCase().includes(q) || i.number.toLowerCase().includes(q))
+  );
+
+  const list = document.getElementById('list');
+  if (state.items.length === 0) {
+    list.innerHTML = '<div class="empty"><div class="big">🏷️</div>No items yet — add your first one above and it gets item number ' + itemNum(state.nextNumber) + '.</div>';
+    return;
+  }
+  if (items.length === 0) {
+    list.innerHTML = '<div class="empty">Nothing matches that search or filter.</div>';
+    return;
+  }
+
+  list.innerHTML = items.map(it => {
+    const isSold = it.status === 'sold';
+    const p = profitOf(it);
+    const sticker = isSold
+      ? `<div class="sticker ${p >= 0 ? 'sold-st' : 'loss-st'}"><span class="amt">${p >= 0 ? '+' : '−'}$${Math.abs(p).toFixed(0)}</span><span class="lbl">profit</span></div>`
+      : `<div class="sticker"><span class="amt">$${(it.askPrice||0).toFixed(0)}</span><span class="lbl">asking</span></div>`;
+    const badge = isSold ? '<span class="badge sold">Sold</span>'
+      : it.status === 'listed' ? '<span class="badge listed">Listed</span>'
+      : '<span class="badge instock">In stock</span>';
+    const meta = isSold
+      ? `<span>cost ${fmt(it.cost)}</span><span>sold ${fmt(it.soldPrice)}</span><span>ship +${fmt(it.shipCharged)} / −${fmt(it.shipCost)}</span><span>fees ${fmt(it.fees)}</span><span>${it.platform}</span>`
+      : `<span>cost ${fmt(it.cost)}</span><span>asking ${fmt(it.askPrice)}</span><span>${it.platform}</span><span>added ${it.added}</span>`;
+    const actions = isSold
+      ? `<div class="row"><button class="mini edit" onclick="setStatus('${it.id}','listed')">Undo sale</button><button class="mini del" onclick="removeItem('${it.id}')">Delete</button></div>`
+      : `<div class="row">${it.status === 'instock' ? `<button class="mini edit" onclick="setStatus('${it.id}','listed')">Mark listed</button>` : ''}<button class="mini sell" onclick="openSell('${it.id}')">Mark sold</button><button class="mini del" onclick="removeItem('${it.id}')">Delete</button></div>`;
+    return `<div class="item">
+      ${sticker}
+      <div class="item-main">
+        <div class="num">${it.number} ${badge}</div>
+        <div class="name">${escapeHtml(it.name)}</div>
+        <div class="meta">${meta}</div>
+      </div>
+      <div class="item-actions">${actions}</div>
+    </div>`;
+  }).join('');
+}
+
+function escapeHtml(s) {
+  return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+(async function init() {
+  try { await initStorage(); await loadData(); } catch (e) { console.error(e); }
+  render();
+})();
+</script>
+</body>
+</html>
