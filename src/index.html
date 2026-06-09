@@ -347,7 +347,7 @@ async function removeItem(id) {
   render();
 }
 
-function exportCsv() {
+async function exportCsv() {
   const head = ['Item Number','Name','Status','Platform','Date Added','Date Sold','Cost','Asking Price','Sold Price','Shipping Charged','Shipping Paid','Fees','Profit'];
   const rows = state.items.map(it => [
     it.number, '"' + it.name.replace(/"/g, '""') + '"', it.status, it.platform,
@@ -358,9 +358,29 @@ function exportCsv() {
     it.status === 'sold' ? profitOf(it).toFixed(2) : ''
   ].join(','));
   const csv = [head.join(','), ...rows].join('\n');
+  const filename = 'inventory-' + new Date().toISOString().slice(0,10) + '.csv';
+
+  // Desktop (Tauri): native Save As dialog + write chosen file
+  if (window.__TAURI__ && window.__TAURI__.dialog && window.__TAURI__.fs) {
+    try {
+      const path = await window.__TAURI__.dialog.save({
+        defaultPath: filename,
+        filters: [{ name: 'CSV', extensions: ['csv'] }],
+      });
+      if (!path) return; // user cancelled
+      await window.__TAURI__.fs.writeTextFile(path, csv);
+      toast('CSV exported');
+    } catch (e) {
+      toast('Could not export — try again');
+      console.error(e);
+    }
+    return;
+  }
+
+  // Browser fallback (standalone index.html)
   const a = document.createElement('a');
   a.href = 'data:text/csv;charset=utf-8,' + encodeURIComponent(csv);
-  a.download = 'inventory-' + new Date().toISOString().slice(0,10) + '.csv';
+  a.download = filename;
   document.body.appendChild(a);
   a.click();
   a.remove();
