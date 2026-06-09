@@ -108,7 +108,9 @@
 
 <header>
   <h1><span class="dot"></span>Inventory</h1>
-  <span class="sub">eBay &amp; Facebook Marketplace</span>
+  <span class="sub">eBay &amp; Facebook Marketplace
+    <a href="#" id="checkUpdateLink" onclick="checkForUpdates({silent:false}); return false;" style="margin-left:12px; font-size:12px;">Check for updates</a>
+  </span>
 </header>
 
 <div class="stats" id="stats"></div>
@@ -204,6 +206,17 @@
   </div>
 </div>
 
+<div class="overlay" id="updateOverlay">
+  <div class="dialog">
+    <h3>Update available</h3>
+    <div class="dnum" id="updateMsg"></div>
+    <div class="form-actions">
+      <button class="btn-primary" id="updateInstallBtn" onclick="installUpdate()">Install &amp; restart</button>
+      <button class="btn-ghost" onclick="closeUpdate()">Later</button>
+    </div>
+  </div>
+</div>
+
 <div class="toast" id="toast"></div>
 
 <script>
@@ -211,6 +224,7 @@ const KEY = 'inventory-data';
 let state = { items: [], nextNumber: 1 };
 let sellingId = null;
 let tauriStore = null;
+let pendingUpdate = null;
 
 // ---- Storage layer: Tauri store plugin (JSON file on disk), localStorage fallback ----
 async function initStorage() {
@@ -311,6 +325,50 @@ function previewProfit() {
 function closeDialog() {
   document.getElementById('sellOverlay').classList.remove('open');
   sellingId = null;
+}
+
+async function checkForUpdates({ silent = false } = {}) {
+  if (!(window.__TAURI__ && window.__TAURI__.updater)) {
+    if (!silent) toast('Updates are only available in the desktop app');
+    return;
+  }
+  try {
+    const update = await window.__TAURI__.updater.check();
+    if (!update) {
+      if (!silent) toast("You're on the latest version");
+      return;
+    }
+    pendingUpdate = update;
+    document.getElementById('updateMsg').textContent =
+      'Version ' + update.version + ' is available. Install now? The app will restart.';
+    document.getElementById('updateOverlay').classList.add('open');
+  } catch (e) {
+    if (!silent) toast('Could not check for updates');
+    console.error(e);
+  }
+}
+
+function closeUpdate() {
+  document.getElementById('updateOverlay').classList.remove('open');
+}
+
+async function installUpdate() {
+  if (!pendingUpdate) return;
+  const btn = document.getElementById('updateInstallBtn');
+  btn.disabled = true;
+  btn.textContent = 'Downloading…';
+  try {
+    await pendingUpdate.downloadAndInstall((event) => {
+      if (event.event === 'Progress') btn.textContent = 'Downloading…';
+      if (event.event === 'Finished') btn.textContent = 'Installing…';
+    });
+    await window.__TAURI__.process.relaunch();
+  } catch (e) {
+    btn.disabled = false;
+    btn.textContent = 'Install & restart';
+    toast('Update failed — try again');
+    console.error(e);
+  }
 }
 
 async function confirmSold() {
@@ -453,6 +511,7 @@ function escapeHtml(s) {
 (async function init() {
   try { await initStorage(); await loadData(); } catch (e) { console.error(e); }
   render();
+  checkForUpdates({ silent: true });
 })();
 </script>
 </body>
