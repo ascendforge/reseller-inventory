@@ -1,6 +1,6 @@
 [package]
 name = "reseller-inventory"
-version = "1.0.0"
+version = "1.0.1"
 description = "Inventory tracker for eBay and Facebook Marketplace reselling"
 edition = "2021"
 
